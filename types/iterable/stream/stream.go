@@ -54,11 +54,21 @@ func (s *Stream[T]) Take(n int) []T {
 	values := make([]T, 0, n)
 
 	count := 0
+loop:
 	for count < n {
 		if !s.iterator.Next() {
 			break
 		}
-		values = append(s.values, s.iterator.Value())
+
+		v, ok := s.iterator.Value(), true
+		for _, action := range s.actions {
+			v, ok = action(v)
+			if !ok {
+				continue loop
+			}
+		}
+
+		values = append(values, v)
 		count++
 	}
 
@@ -69,12 +79,13 @@ func (s *Stream[T]) Collect() []T {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
+loop:
 	for s.iterator.Next() {
 		v, ok := s.iterator.Value(), true
 		for _, action := range s.actions {
 			v, ok = action(v)
 			if !ok {
-				continue
+				continue loop
 			}
 		}
 		s.values = append(s.values, v)
